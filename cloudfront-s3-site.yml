@@ -33,12 +33,12 @@ Resources:
           Name: !Sub 'CachePol-${AWS::StackName}'
           ParametersInCacheKeyAndForwardedToOrigin:
                   CookiesConfig:
-                    CookieBehavior: all
+                    CookieBehavior: none
                   EnableAcceptEncodingGzip: true
                   HeadersConfig:
                     HeaderBehavior: none
                   QueryStringsConfig:
-                    QueryStringBehavior: all
+                    QueryStringBehavior: none
           
   CloudFrontDistribution:
     Type: AWS::CloudFront::Distribution
@@ -48,14 +48,42 @@ Resources:
                   TargetOriginId: !Ref S3Bucket
                   ViewerProtocolPolicy: redirect-to-https
                   CachePolicyId: !GetAtt CachePolicy.Id
+                  FunctionAssociations:
+                    - EventType: viewer-request
+                      FunctionARN: !GetAtt CloudFrontFunction.FunctionMetadata.FunctionARN
           Enabled: true
           DefaultRootObject: index.html
           Origins:
             - DomainName: !Sub '${S3Bucket}.s3.${AWS::Region}.amazonaws.com'
               Id: !Ref S3Bucket
               OriginAccessControlId: !GetAtt OriginAccessControl.Id
-              S3OriginConfig:
-                OriginAccessIdentity:  ''
+              S3OriginConfig: {}
+  
+  
+  CloudFrontFunction:
+    Type: AWS::CloudFront::Function
+    Properties: 
+      AutoPublish: true
+      FunctionCode: |
+        function handler(event) {
+          var request = event.request;
+          var uri = request.uri;
+
+          // Check whether the URI is missing a file name.
+          if (uri.endsWith("/")) {
+            request.uri += "index.html";
+          } 
+          // Check whether the URI is missing a file extension.
+          else if (!uri.includes(".")) {
+            request.uri += "/index.html";
+          }
+
+          return request;
+        }
+      FunctionConfig: 
+        Comment: 'Function for multipage compatibility with S3 Objects and Astro'
+        Runtime: cloudfront-js-1.0
+      Name: !Sub 'CF-AstroMultiPages-${AWS::StackName}'
 
 
   OriginAccessControl:
