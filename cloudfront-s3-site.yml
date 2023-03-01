@@ -1,0 +1,68 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: CloudFront serving an S3 bucket using OAC 
+
+Resources:
+  S3Bucket:
+    Type: AWS::S3::Bucket
+  
+      
+  BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref S3Bucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement: 
+          - Action: 
+              - 's3:GetOBject'
+            Effect: Allow
+            Resource: !Sub "arn:aws:s3:::${S3Bucket}/*"
+            Principal:
+              Service: 'cloudfront.amazonaws.com'
+            Condition: 
+              StringEquals: 
+                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}"
+
+  CachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+          DefaultTTL: 86400 # default - 1 day
+          MaxTTL: 31536000 # default - 1 year
+          MinTTL: 1
+          Name: !Sub 'CachePol-${AWS::StackName}'
+          ParametersInCacheKeyAndForwardedToOrigin:
+                  CookiesConfig:
+                    CookieBehavior: all
+                  EnableAcceptEncodingGzip: true
+                  HeadersConfig:
+                    HeaderBehavior: none
+                  QueryStringsConfig:
+                    QueryStringBehavior: all
+          
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+          DefaultCacheBehavior:
+                  TargetOriginId: !Ref S3Bucket
+                  ViewerProtocolPolicy: redirect-to-https
+                  CachePolicyId: !GetAtt CachePolicy.Id
+          Enabled: true
+          DefaultRootObject: index.html
+          Origins:
+            - DomainName: !Sub '${S3Bucket}.s3.${AWS::Region}.amazonaws.com'
+              Id: !Ref S3Bucket
+              OriginAccessControlId: !GetAtt OriginAccessControl.Id
+              S3OriginConfig:
+                OriginAccessIdentity:  ''
+
+
+  OriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+          Name: !Sub 'OAC-${AWS::StackName}'
+          OriginAccessControlOriginType: s3
+          SigningBehavior: always
+          SigningProtocol: sigv4
