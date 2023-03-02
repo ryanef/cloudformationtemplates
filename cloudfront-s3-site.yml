@@ -94,3 +94,11 @@ Resources:
           OriginAccessControlOriginType: s3
           SigningBehavior: always
           SigningProtocol: sigv4
+
+Outputs:
+  CloudFrontDomain: 
+    Value: !GetAtt CloudFrontDistribution.DomainName
+  CloudFrontDistributionID: 
+    Value: !Ref CloudFrontDistribution
+  S3Bucket:
+    Value: !Ref S3Bucket
